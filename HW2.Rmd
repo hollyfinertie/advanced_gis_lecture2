@@ -1,0 +1,80 @@
+---
+title: "HW2"
+author: "Holly Finertie"
+date: "1/29/2020"
+output: html_document
+---
+
+```{r}
+require(maps)
+require(maptools)
+require(data.table)
+library(tidyverse)
+library(RColorBrewer)
+library(classInt)
+require(rgdal)
+require(sf)
+require(ggplot2)
+require(ggsn)
+
+nj = map('county', 'new jersey', fill = TRUE, col = palette())
+list.names.nj = strsplit(nj$names,",")
+
+nj_ids = as.character(tolower(sapply(list.names.nj, function(x) x[2])))
+head(nj_ids)
+
+nj_sp = map2SpatialPolygons(nj, IDs = nj_ids, 
+                                proj4string = CRS("+init=epsg:2261"))
+
+rwj = fread("./instructions/rwj_rank.csv", stringsAsFactors = F, data.table = F,
+            colClasses = list(character = c("FIPS")))
+
+nj_rwj = subset(rwj, State == "New Jersey")
+head(nj_rwj)
+
+row.names(nj_rwj) = as.character(tolower(nj_rwj$County))
+
+nj_rwj_df = SpatialPolygonsDataFrame(nj_sp,nj_rwj)
+summary(nj_rwj_df)
+summary(nj_rwj_df$HB.Rank)
+
+nj_rwj_df$HB.Rank = as.numeric(nj_rwj_df$HB.Rank)
+summary(nj_rwj_df$HB.Rank)
+
+nj_rwj_df$QL.Rank = 62 - nj_rwj_df$HB.Rank
+
+writeOGR(nj_rwj_df, 
+         dsn = "working_directory", 
+         layer = "RWJ_NJ", 
+         driver = "ESRI Shapefile")
+
+rwj_sf = st_read(dsn = "working_directory",
+                  layer = "RWJ_NJ")
+names(rwj_sf)
+head(rwj_sf)
+
+northSymbols()
+
+hw2 = ggplot(data = rwj_sf) +
+  geom_sf() +
+  aes(fill=cut_number(QL_Rank, 5)) +
+  scale_fill_brewer(name="Quantile", palette="Blues", 
+                    labels=c("1st",
+                             "2nd",
+                             "3rd",
+                             "4th",
+                             "5th")) +
+  labs(title = "County Level Health Behaviors Rank New Jersey State",
+       subtitle = "Holly Finertie\n",
+       caption = "\nData source: Robert Wood Johnson Foundation") +
+  theme(axis.text = element_text(size = 6),                       
+        axis.title = element_text(size = 6),
+        plot.title = element_text(face = "bold",size = 16,hjust = 0.5),
+        plot.subtitle = element_text(size = 12,hjust =0.5),
+        plot.caption = element_text(),
+        legend.position = "right") +
+  north(rwj_sf, scale = 0.15, symbol = 4, location = "bottomleft")
+
+hw2
+```
+
